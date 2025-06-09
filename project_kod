@@ -1,0 +1,67 @@
+import pandas as pd
+from docx import Document
+
+# Загружаем ответы из CSV
+df = pd.read_csv("new_form.csv")
+
+# Разделим "Период обучения" на три части: start date, end date, year of the end
+def parse_period(period_str):
+    try:
+        parts = period_str.split("-")
+        start = parts[0].strip()
+        end_full = parts[1].strip()
+        end = end_full.rsplit('.', 1)[0].strip()
+        year = end_full.strip()[-2:]
+        return pd.Series([start, end, year])
+    except:
+        return pd.Series(["", "", ""])
+
+df[['start_date', 'end_date', 'year_of_end']] = df['Период обучения'].apply(parse_period)
+
+# Сопоставление полей
+placeholder_map = {
+    "{ { fio stud } }": "ФИО",
+    "{ { place of work } }": 'Наименование места работы (либо напишите "не работаю")',
+    "{ { name of program } }": "Наименование программы",
+    "{ { name of cafedra} }": "Наименование кафедры ",
+    "{ {start date} }": "start_date",
+    "{ { end date } }": "end_date",
+    " { { year of the end} }": "year_of_end",
+    "{ { name of university  and the end year } }": "Наименование вуза, год окончания",
+    "{ { speciacization} }": "Специальность по диплому",
+    "{ { internatura and year } }": "Интернатура/ординатура,  специальность, год окончания",
+    "{ { professional retraining and year } }": "Профессиональная переподготовка,  специальность, год окончания",
+    "{ { work experience } }": "Стаж работы по специальности (указать специальность и стаж)",
+    "{ { citizenship } }": "Гражданство",
+    "{ { mobile phone } }": "Контактный телефон",
+    "{ { e-mail } }": "Е-mail",
+    "{ { date of birth } }": "Дата рождения",
+    "{ { passport seria } }": "Серия паспорта",
+    "{ { passport number } }": "Номер паспорта",
+    "{ { passport date } }": "Дата выдачи",
+    "{ { who gave  passport } }": "Кем выдан",
+    "{ { registration } }": "Паспорт зарегистрирован ",
+    "{ { post index} }": "Почтовый индекс "
+}
+
+# Генерация документов
+for index, row in df.iterrows():
+    doc = Document("zajavlenie_na_pk_dlja_fl.docx")
+
+    # Замена в параграфах
+    for paragraph in doc.paragraphs:
+        for placeholder, column in placeholder_map.items():
+            if placeholder in paragraph.text:
+                paragraph.text = paragraph.text.replace(placeholder, str(row[column]))
+
+    # Замена в таблицах (на случай, если шаблон содержит таблицы)
+    for table in doc.tables:
+        for row_cells in table.rows:
+            for cell in row_cells.cells:
+                for placeholder, column in placeholder_map.items():
+                    if placeholder in cell.text:
+                        cell.text = cell.text.replace(placeholder, str(row[column]))
+
+    # Сохраняем документ
+    fio_safe = row["ФИО"].replace(" ", "_").replace(".", "")
+    doc.save(f"Заявление_{fio_safe}.docx")
